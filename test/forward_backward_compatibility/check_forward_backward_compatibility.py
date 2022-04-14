@@ -112,6 +112,7 @@ ALLOW_LIST = [
     ("aten::scatter_reduce.two", datetime.date(2022, 4, 15)),
     ("aten::_s_where", datetime.date(2022, 9, 30)),
     ("aten::quantized_max_pool2d", datetime.date(2022, 4, 25)),
+    ("aten::quantized_max_pool1d", datetime.date(2022, 4, 25)),
     ("quantized::conv2d_cudnn", datetime.date(2022, 3, 22)),
     ("quantized::conv2d_relu_cudnn", datetime.date(2022, 3, 22)),
     ("prim::infer_squeeze_size.dim", datetime.date(9999, 1, 1)),
