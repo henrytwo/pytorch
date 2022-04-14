@@ -332,7 +332,11 @@ void ts_eager_fallback(
             } else {
               dev_str << "<none>";
             }
-            TORCH_WARN(
+            // We should never hit this for a view op,
+            // because LazyTensor should provide a lowering for the corresponding
+            // view_copy operator. The functionalization pass will take care
+            // of calling the view_copy operator intead of the view.
+            TORCH_CHECK(
                 false,
                 "The operator ",
                 op.schema().operator_name(),
@@ -350,8 +354,15 @@ void ts_eager_fallback(
           // torch.cat() with an empty list In that case, we shouldn't have any
           // tensors to schlep across devices anyway.
           if (tgt_device) {
+            const at::Tensor& out = returns[idx].toTensor();
+            at::Tensor lazy_out = torch::lazy::to_lazy_tensor(
+              out,
+              out.options(),
+              *tgt_device,
+              /*non_blocking=*/false,
+              /*functionalize_output=*/false);
             (*stack)[returns_begin + idx] =
-                c10::IValue(returns[idx].toTensor().to(*tgt_device));
+                c10::IValue(std::move(lazy_out));
           }
         }
       }
