@@ -6,12 +6,25 @@
 #include <ostream>
 
 namespace c10 {
-enum class Layout : int8_t { Strided, Sparse, SparseCsr, Mkldnn, NumOptions };
+enum class Layout : int8_t {
+  Strided,
+  Sparse,
+  SparseCsr,
+  Mkldnn,
+  SparseCsc,
+  SparseBsr,
+  SparseBsc,
+  NumOptions
+};
 
 constexpr auto kStrided = Layout::Strided;
 constexpr auto kSparse = Layout::Sparse;
 constexpr auto kSparseCsr = Layout::SparseCsr;
 constexpr auto kMkldnn = Layout::Mkldnn;
+constexpr auto kSparseCsc = Layout::SparseCsc;
+constexpr auto kSparseBsr = Layout::SparseBsr;
+constexpr auto kSparseBsc = Layout::SparseBsc;
+constexpr auto kDummyLayout = Layout::NumOptions;
 
 inline Layout layout_from_backend(Backend backend) {
   switch (backend) {
@@ -25,6 +38,9 @@ inline Layout layout_from_backend(Backend backend) {
       return Layout::Mkldnn;
     case Backend::SparseCsrCPU:
     case Backend::SparseCsrCUDA:
+      TORCH_CHECK(
+          false,
+          "Cannot map Backend SparseCsrCPU|SparseCsrCUDA to a unique layout.");
       return Layout::SparseCsr;
     default:
       return Layout::Strided;
@@ -41,8 +57,35 @@ inline std::ostream& operator<<(std::ostream& stream, at::Layout layout) {
       return stream << "SparseCsr";
     case at::kMkldnn:
       return stream << "Mkldnn";
+    case at::kSparseCsc:
+      return stream << "SparseCsc";
+    case at::kSparseBsr:
+      return stream << "SparseBsr";
+    case at::kSparseBsc:
+      return stream << "SparseBsc";
+    case at::kDummyLayout:
+      return stream << "DummyLayout";
     default:
       TORCH_CHECK(false, "Unknown layout");
+  }
+}
+
+inline std::string layoutToString(
+    Layout layout,
+    bool upper = false,
+    bool lower = false) {
+  switch (layout) {
+    case kSparseCsr:
+      return (upper ? "CSR" : (lower ? "csr" : "Csr"));
+    case kSparseCsc:
+      return (upper ? "CSC" : (lower ? "csc" : "Csc"));
+    case kSparseBsr:
+      return (upper ? "BSR" : (lower ? "bsr" : "Bsr"));
+    case kSparseBsc:
+      return (upper ? "BSC" : (lower ? "bsc" : "Bsc"));
+    default:
+      TORCH_CHECK(false, "Not a sparse compressed layout:", layout);
+      return "";
   }
 }
 
