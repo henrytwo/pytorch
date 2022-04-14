@@ -245,7 +245,8 @@ def static_dispatch_ops_header(
 
 def static_dispatch_extra_headers(
         backends: List[BackendIndex],
-        skip_tensor_include: bool = False
+        skip_tensor_include: bool = False,
+        skip_dpkey_include: bool = False
 ) -> List[str]:
     if skip_tensor_include:
         # See Note [Avoiding Include Cycles In Static Dispatch]
@@ -254,7 +255,11 @@ def static_dispatch_extra_headers(
         maybe_inl = ''
     inl_func_headers = [f'#include <ATen/{dispatch_key}Functions{maybe_inl}.h>'
                         for dispatch_key in static_dispatch_keys(backends)]
-    return inl_func_headers
+    if skip_dpkey_include:
+        # See Note [Avoiding Include Cycles In Static Dispatch]
+        return inl_func_headers
+    else:
+        return ["#include <ATen/core/dispatch/DispatchKeyExtractor.h>"] + inl_func_headers
 
 def generate_static_dispatch(
     f: NativeFunction,
@@ -527,7 +532,7 @@ inline {sig.defn(prefix="Tensor::")} const {{
             else:
                 return f"""
 // aten::{f.func}
-inline {sig.defn(prefix="Tensor::")} const {{
+{sig.defn(prefix="Tensor::")} const {{
     {static_dispatch_block}
 }}
 """
@@ -1361,15 +1366,15 @@ def gen_headers(
             lambda fn: static_dispatch_ops_header(fn, backend_index=static_dispatch_idx),
             [fn for fn in native_functions if Variant.method in fn.variants]))
 
-
     core_fm.write('TensorBody.h', lambda: {
-        'static_dispatch_ops_headers': (
+        'static_dispatch_ops_headers':
             static_dispatch_method_headers() if per_operator_headers
-            else static_dispatch_extra_headers(static_dispatch_idx, skip_tensor_include=True)),
+            else static_dispatch_extra_headers(static_dispatch_idx, skip_tensor_include=True, skip_dpkey_include=True),
         'tensor_method_declarations': list(mapMaybe(ComputeTensorMethod(
             target=Target.DECLARATION, static_dispatch_backend_indices=static_dispatch_idx), native_functions)),
         'tensor_method_definitions': list(mapMaybe(ComputeTensorMethod(
-            target=Target.DEFINITION, static_dispatch_backend_indices=static_dispatch_idx), native_functions)),
+            target=Target.DEFINITION, static_dispatch_backend_indices=static_dispatch_idx), native_functions)) if len(static_dispatch_idx)==0
+            else [],
     })
 
     cpu_fm.write('RedispatchFunctions.h', lambda: {
@@ -1609,7 +1614,13 @@ TORCH_LIBRARY_IMPL(aten, $dispatch_key, m) {
 
     cpu_fm.write('Functions.cpp', lambda: {})
 
-    core_fm.write('TensorMethods.cpp', lambda: {})
+    core_fm.write('TensorMethods.cpp', lambda: {
+        'static_dispatch_ops_headers':
+            [] if len(static_dispatch_idx)==0 else ["#include <ATen/core/dispatch/DispatchKeyExtractor.h>"],
+        'tensor_method_definitions':
+            [] if len(static_dispatch_idx)==0 else list(mapMaybe(ComputeTensorMethod(
+            target=Target.DEFINITION, static_dispatch_backend_indices=static_dispatch_idx),native_functions)),
+    })
 
     core_fm.write('ATenOpList.cpp', lambda: {
         'aten_ops': list(mapMaybe(compute_aten_op, native_functions)),

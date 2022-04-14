@@ -638,8 +638,7 @@ Tensor make_tensor(Args&&... args) {
 ${static_dispatch_ops_headers}
 namespace at {
 ${tensor_method_definitions}
-} // namespace at
-
+}
 
 namespace c10 {
 template <>
